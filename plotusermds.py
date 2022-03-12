@@ -12,8 +12,11 @@ so that wants tk
 ah. postgres listens on localhost which is docker
 we live on the host so with bjoern's rna workbench, need to open 5432 or whatever you use on the container
 """
-
+from datetime import datetime
+import logging
+import os
 import random
+import time
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -51,13 +54,13 @@ def pgjobs(CHUNKSIZE = 1000,
     dbname=POSTGRES_DBNAME))
     # Create the connection
     cnx = create_engine(postgres_str)
-    squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time>= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id ORDER BY user_id, tool_id ;'''
+    squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time>= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id ;'''
     dfs = []
     for chunk in pd.read_sql(squery.format(DSTART, DFINISH), con=cnx, chunksize=CHUNKSIZE):
         dfs.append(chunk)
     jobs = pd.concat(dfs)
     wjobs = jobs.pivot(index='user_id', columns='tool_id', values='nruns')
-    # this requires some serious SQL but is easier here.
+    # Could be done with postgres crosstable pivot - ugly and varies with PG version :( but is easy in pandas
     wjobs = wjobs.fillna(0)
     rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
     # scale user tool nruns into a fraction of their total work - i.e. scaled to remove effects of uninteresting total work volumes
@@ -107,13 +110,20 @@ def plotjobs(j):
     jobarray = jobs.to_numpy(na_value=0)
     mds = MDS(random_state=0)
     jobs_transform = mds.fit_transform(jobarray)
-    size = [10]
+    size = [5]
     plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
     plt.title('Users in tool usage space')
     plt.savefig('user_in_toolspace_mds.pdf')
 
-
-jobs = fakejobs()
-
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+log = logging.getLogger()
+started = time.time()
+log.info('galumds.py starting %s' % datetime.today())
+# e.g. for a one month test
+# jobs = pgjobs(DSTART = '2022-02-01 00:00:01', DFINISH = '2022-03-01 00:00:01')
+jobs = pgjobs()
+mstarted = time.time()
+log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started, len(jobs)))
 plotjobs(jobs)
-#stresstest(jobs)
+log.info('MDS took %f sec' % (time.time() - mstarted))
+log.info('galumds.py finished %s' % datetime.today())

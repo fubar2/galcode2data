@@ -7,7 +7,11 @@ so that wants tk
 ah. postgres listens on localhost which is docker
 we live on the host so with bjoern's docker, need to open 5432 or whatever you use on the container
 """
-
+from datetime import datetime
+import logging
+import os
+import random
+import time
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -51,6 +55,25 @@ def pgjobs(CHUNKSIZE = 1000,
     # scale user tool nruns into a fraction of their total work - i.e. scaled to remove effects of uninteresting total work volumes
     return rjobs
 
+def fakejobs(NTOOL = 100, NUSERID = 1000, NGROUPS = 5):
+    # synthesise NGROUPS obviously different users
+    # to test mds plot code without real data
+    sjob = []
+    for userid in range(NUSERID):
+        srow = []
+        for toolid in range(NTOOL):
+            srow.append(random.randint(0,1000))
+        group = (userid % NGROUPS)
+        for r in range(group, NTOOL, NGROUPS):
+            srow[r] = 5*srow[r] # fake strong group bias
+        # scale so tool frequencies sum to 1
+        fsum = float(sum(srow))
+        nrow = [x/fsum for x in srow]
+        nrow.insert(0,userid)
+        sjob.append(nrow)
+        job = pd.DataFrame(sjob)
+        job = job.drop(job.columns[[0]], axis=1)
+    return job
 
 def plotjobs(j):
     jobs = pd.DataFrame(j)
@@ -58,12 +81,21 @@ def plotjobs(j):
     jobarray = jobs.to_numpy(na_value=0)
     mds = MDS(random_state=0)
     jobs_transform = mds.fit_transform(jobarray)
-    size = [10]
+    size = [5]
     plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
     plt.title('Users in tool usage space')
     plt.savefig('user_in_toolspace_mds.pdf')
 
-
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+log = logging.getLogger()
+started = time.time()
+log.info('galumds.py starting %s' % datetime.today())
+# e.g. for a one month test
+# jobs = pgjobs(DSTART = '2022-02-01 00:00:01', DFINISH = '2022-03-01 00:00:01')
 jobs = pgjobs()
+mstarted = time.time()
+log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started, len(jobs)))
 plotjobs(jobs)
+log.info('MDS took %f sec' % (time.time() - mstarted))
+log.info('galumds.py finished %s' % datetime.today())
 
