@@ -8,7 +8,6 @@ ah. postgres listens on localhost which is docker
 we live on the host so with bjoern's docker, need to open 5432 or whatever you use on the container
 """
 
-import random
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -40,7 +39,7 @@ def pgjobs(CHUNKSIZE = 1000,
     port=POSTGRES_PORT,
     dbname=POSTGRES_DBNAME))
     cnx = create_engine(postgres_str)
-    squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id ORDER BY user_id, tool_id ;'''
+    squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;'''
     dfs = []
     for chunk in pd.read_sql(squery.format(DSTART, DFINISH), con=cnx, chunksize=CHUNKSIZE):
         dfs.append(chunk)
