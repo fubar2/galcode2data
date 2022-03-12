@@ -44,6 +44,7 @@ def pgjobs(CHUNKSIZE = 1000,
     dbname=POSTGRES_DBNAME))
     cnx = create_engine(postgres_str)
     squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;'''
+    log.info('squery=%s' % squery.format(DSTART, DFINISH))
     dfs = []
     for chunk in pd.read_sql(squery.format(DSTART, DFINISH), con=cnx, chunksize=CHUNKSIZE):
         dfs.append(chunk)
@@ -91,11 +92,14 @@ log = logging.getLogger()
 started = time.time()
 log.info('galumds.py starting %s' % datetime.today())
 # e.g. for a one month test
-# jobs = pgjobs(DSTART = '2022-02-01 00:00:01', DFINISH = '2022-03-01 00:00:01')
-jobs = pgjobs()
+jobs = pgjobs(DSTART = '2022-01-01 00:00:01', DFINISH = '2022-01-31 23:23:59')
+# jobs = pgjobs()
 mstarted = time.time()
-log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started, len(jobs)))
-plotjobs(jobs)
-log.info('MDS took %f sec' % (time.time() - mstarted))
+nr = len(jobs)
+log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started,nr))
+if nr > 2:
+    plotjobs(jobs)
+    log.info('MDS took %f sec' % (time.time() - mstarted))
+else:
+    log.warning('1 or less rows in query result - check that the time interval is sane?')
 log.info('galumds.py finished %s' % datetime.today())
-
