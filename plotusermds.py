@@ -26,10 +26,8 @@ from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import euclidean_distances
 from sqlalchemy import create_engine
 
-NTOOL = 100
-NUSERID = 1000
-NGROUPS = 5
-NCPU = 2  # allowable mds parallel processes, -1 = all !
+
+NCPU = 2  # allowable mds parallel processes, -1 = all
 
 
 plt.switch_backend("TkAgg")  # for x over ssh
@@ -44,7 +42,7 @@ def pg_cnx(
     POSTGRES_DBNAME="galaxy",
 ):
     """
-    generic get a connection to postgres
+    generic - return a connection to postgres
     """
     postgres_str = (
         "postgresql://{username}:{password}@{ipaddress}:{port}/{dbname}".format(
@@ -61,7 +59,7 @@ def pg_cnx(
 
 def pg_query(cnx, sql=None, CHUNKSIZE=1000):
     """
-    generic run a chunked sql query
+    generic  - run a chunked sql query
     """
     log.info("sql=%s" % sql)
     dfs = []
@@ -74,9 +72,9 @@ def pg_query(cnx, sql=None, CHUNKSIZE=1000):
 class autoflocker():
 
     def __init__(self, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
-        # forever may be too long on main!!
-        DODENDRO = True
-        # WARNING!! this will take a huge amount of time for a big dataset :-(
+        # forever may be too long on main
+        DODENDRO = False
+        # WARNING: this will take a long time for a big dataset :-(
         # twice as long as the mds for the faked 1000x100 data
         # it's another way to look at the results...
         self.cnx = pg_cnx()
@@ -88,19 +86,19 @@ class autoflocker():
         wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
         # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
         wjobs = wjobs.fillna(0)
-        rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
+        sjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
         # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
         mstarted = time.time()
-        nr = len(rjobs)
+        nr = len(sjobs)
         log.info(
             "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
         )
         if nr > 2:
-            mds = self.plotjobs(rjobs)
+            mds = self.plotjobs(sjobs)
             log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
             if DODENDRO:
                 hstarted = time.time()
-                self.heatdendro(mds.dissimilarity_matrix_, rjobs)
+                self.heatdendro(mds.dissimilarity_matrix_, sjobs)
                 log.info("heat/dendro plot took %f sec" % (time.time() - hstarted))
         else:
             log.warning(

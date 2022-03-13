@@ -5,7 +5,7 @@ Couple of generic functions with a specific mds function
 
 Includes fake data generation to test the plot code
 ross lazarus March 12 2022
-pip3 install pandas matplotlib numpy sklearn sqlalchemy
+pip3 install pandas matplotlib sklearn sqlalchemy
 need python3-tk if you want to use remote xwindows for images
 so that wants tk
 ah. postgres listens on localhost which is docker
@@ -74,15 +74,15 @@ class autoflocker():
         wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
         # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
         wjobs = wjobs.fillna(0)
-        rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
+        sjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
         # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
         mstarted = time.time()
-        nr = len(rjobs)
+        nr = len(sjobs)
         log.info(
             "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
         )
         if nr > 2:
-            self.plotjobs(rjobs)
+            self.plotjobs(sjobs)
             log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
         else:
             log.warning(
