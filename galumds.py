@@ -14,98 +14,100 @@ we live on the host so with bjoern's rna workbench, need to open 5432 or whateve
 from datetime import datetime
 import logging
 import os
-import random
 import time
 
 from matplotlib import pyplot as plt
-import numpy as np
 import pandas as pd
-import psycopg2
 from sklearn.manifold import MDS
-from sklearn.metrics.pairwise import manhattan_distances, euclidean_distances
 from sqlalchemy import create_engine
 
-NTOOL = 100
-NUSERID = 1000
-NGROUPS = 5
-NCPU = 2 # allowable mds parallel processes, -1 = all !
+NCPU = 2  # allowable mds parallel processes, -1 = all !
 
-
-plt.switch_backend('TkAgg') # for x over ssh
+plt.switch_backend("TkAgg")  # for x over ssh
 
 # override with local values - these are Bjoern's docker defaults.
-def pg_cnx( POSTGRES_ADDRESS = '127.0.0.1',
-    POSTGRES_PORT = '5432',
-    POSTGRES_USERNAME = 'galaxy',
-    POSTGRES_PASSWORD = 'galaxy',
-    POSTGRES_DBNAME = 'galaxy',
-    ):
+
+def pg_cnx(
+    POSTGRES_ADDRESS="127.0.0.1",
+    POSTGRES_PORT="5432",
+    POSTGRES_USERNAME="galaxy",
+    POSTGRES_PASSWORD="galaxy",
+    POSTGRES_DBNAME="galaxy",
+):
     """
     generic get a connection to postgres
     """
-    postgres_str = ('postgresql://{username}:{password}@{ipaddress}:{port}/{dbname}'.format(username=POSTGRES_USERNAME,
-    password=POSTGRES_PASSWORD,
-    ipaddress=POSTGRES_ADDRESS,
-    port=POSTGRES_PORT,
-    dbname=POSTGRES_DBNAME))
+    postgres_str = (
+        "postgresql://{username}:{password}@{ipaddress}:{port}/{dbname}".format(
+            username=POSTGRES_USERNAME,
+            password=POSTGRES_PASSWORD,
+            ipaddress=POSTGRES_ADDRESS,
+            port=POSTGRES_PORT,
+            dbname=POSTGRES_DBNAME,
+        )
+    )
     cnx = create_engine(postgres_str)
     return cnx
 
-def pg_query(cnx, sql = None, CHUNKSIZE = 1000):
+
+def pg_query(cnx, sql=None, CHUNKSIZE=1000):
     """
     generic run a chunked sql query
     """
-    log.info('sql=%s' % sql)
+    log.info("sql=%s" % sql)
     dfs = []
     for chunk in pd.read_sql(sql, con=cnx, chunksize=CHUNKSIZE):
         dfs.append(chunk)
     res = pd.concat(dfs)
     return res
 
-def mds_query(cnx, DSTART = '2000-01-01 00:00:01',
-                            DFINISH = '2022-06-01 00:00:01'):
-    #forever may be too long on main!!
+
+def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
+    # forever may be too long on main!!
     """
     specific for the autoflocker
     """
 
     def plotmds(j):
         jobs = pd.DataFrame(j)
-        mds = MDS(random_state=0, n_jobs = NCPU)
+        mds = MDS(random_state=0, n_jobs=NCPU)
         jobs_transform = mds.fit_transform(jobs)
         size = [5]
-        plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
-        plt.title('Users in tool usage space')
-        plt.savefig('user_in_toolspace_mds.pdf')
+        plt.scatter(jobs_transform[:, 0], jobs_transform[:, 1], s=size)
+        plt.title("Users in tool usage space")
+        plt.savefig("user_in_toolspace_mds.pdf")
         # heatmap(mds.dissimilarity_matrix_,j)
-        log.info('stress=%f' % mds.stress_)
+        log.info("stress=%f" % mds.stress_)
         return mds
 
-    squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;'''
+    squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
     sql = squery.format(DSTART, DFINISH)
     started = time.time()
-    jobs = pg_query(cnx, sql = sql)
-    log.info('Query took %f seconds' % (time.time() - started))
-    wjobs = jobs.pivot(index='user_id', columns='tool_id', values='nruns')
+    jobs = pg_query(cnx, sql=sql)
+    log.info("Query took %f seconds" % (time.time() - started))
+    wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
     # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
     wjobs = wjobs.fillna(0)
     rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
     # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
     mstarted = time.time()
     nr = len(rjobs)
-    log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started,nr))
+    log.info(
+        "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
+    )
     if nr > 2:
         mds = plotmds(rjobs)
-        log.info('MDS with %d CPU took %f sec' % (NCPU, time.time() - mstarted))
+        log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
     else:
-        log.warning('1 or less rows in query result - check that the time interval is sane?')
+        log.warning(
+            "1 or less rows in query result - check that the time interval is sane?"
+        )
 
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
-log.info('galumds.py starting %s' % datetime.today())
+log.info("galumds.py starting %s" % datetime.today())
 cnx = pg_cnx()
-mds_query(cnx, DSTART = '2000-01-01 00:00:01',
-        DFINISH = '2022-06-01 00:00:01')
-        # forever - might be too big to cope with on main!
-log.info('galumds.py finished %s' % datetime.today())
+mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
+# forever - might be too big to cope with on main!
+log.info("galumds.py finished %s" % datetime.today())
