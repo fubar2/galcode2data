@@ -5,7 +5,7 @@ Couple of generic functions with a specific mds function
 
 Includes fake data generation to test the plot code
 ross lazarus March 12 2022
-pip3 install pandas matplotlib seaborn numpy sklearn sqlalchemy psychopg2-binary
+pip3 install pandas matplotlib numpy sklearn sqlalchemy
 need python3-tk if you want to use remote xwindows for images
 so that wants tk
 ah. postgres listens on localhost which is docker
