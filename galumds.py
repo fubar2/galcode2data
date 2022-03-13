@@ -23,14 +23,15 @@ from sqlalchemy import create_engine
 
 plt.switch_backend('TkAgg') # for x over ssh
 
+NCPU = 2 # this sets the number of allowable mds parallel processes, -1 = all !
 
 def pgjobs(CHUNKSIZE = 1000,
-    POSTGRES_ADDRESS = '127.0.0.1',
+    POSTGRES_ADDRESS = '127.0.0.1', # Bjoern's docker defaults....
     POSTGRES_PORT = '5432',
     POSTGRES_USERNAME = 'galaxy',
     POSTGRES_PASSWORD = 'galaxy',
     POSTGRES_DBNAME = 'galaxy',
-    DSTART = '2020-01-01 00:00:01',
+    DSTART = '2000-01-01 00:00:01', # forever - might be too big to cope with on main!
     DFINISH = '2022-06-01 00:00:01'):
     """
     Extract table userid rows by tool invocation counts
@@ -44,16 +45,17 @@ def pgjobs(CHUNKSIZE = 1000,
     dbname=POSTGRES_DBNAME))
     cnx = create_engine(postgres_str)
     squery = '''SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;'''
-    log.info('squery=%s' % squery.format(DSTART, DFINISH))
+    sql = squery.format(DSTART, DFINISH)
+    log.info('squery=%s' % sql)
     dfs = []
-    for chunk in pd.read_sql(squery.format(DSTART, DFINISH), con=cnx, chunksize=CHUNKSIZE):
+    for chunk in pd.read_sql(sql, con=cnx, chunksize=CHUNKSIZE):
         dfs.append(chunk)
     jobs = pd.concat(dfs)
     wjobs = jobs.pivot(index='user_id', columns='tool_id', values='nruns')
-    # this requires some serious SQL but is easier here.
+    # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
     wjobs = wjobs.fillna(0)
     rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
-    # scale user tool nruns into a fraction of their total work - i.e. scaled to remove effects of uninteresting total work volumes
+    # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
     return rjobs
 
 def fakejobs(NTOOL = 100, NUSERID = 1000, NGROUPS = 5):
@@ -80,7 +82,7 @@ def fakejobs(NTOOL = 100, NUSERID = 1000, NGROUPS = 5):
 def plotjobs(j):
     jobs = pd.DataFrame(j)
     jobarray = euclidean_distances(jobs) # precompute - returns numpy array
-    mds = MDS(random_state=0, dissimilarity = "precomputed")
+    mds = MDS(random_state=0, dissimilarity = "precomputed", n_jobs = NCPU)
     jobs_transform = mds.fit_transform(jobarray)
     size = [5]
     plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
@@ -94,16 +96,17 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 started = time.time()
 log.info('galumds.py starting %s' % datetime.today())
-# e.g. for a one month test
-# jobs = pgjobs(DSTART = '2022-01-01 00:00:01', DFINISH = '2022-01-31 23:59:59')
-jobs = pgjobs()
-#jobs = fakejobs()
+# adjusted dates for a one month test to start
+jobs = pgjobs(DSTART = '2022-01-01 00:00:01', DFINISH = '2022-01-31 23:59:59')
+# jobs = pgjobs()
+# jobs = fakejobs()
 mstarted = time.time()
 nr = len(jobs)
 log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started,nr))
 if nr > 2:
     mds = plotjobs(jobs)
-    log.info('MDS took %f sec' % (time.time() - mstarted))
+    log.info('MDS with %d CPU took %f sec' % (NCPU, time.time() - mstarted))
+
 else:
     log.warning('1 or less rows in query result - check that the time interval is sane?')
 log.info('galumds.py finished %s' % datetime.today())
