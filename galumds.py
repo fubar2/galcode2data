@@ -25,8 +25,6 @@ from sqlalchemy import create_engine
 NCPU = 2  # allowable mds parallel processes, -1 = all !
 
 
-plt.switch_backend("TkAgg")  # for x over ssh
-
 # override with local values - these are Bjoern's docker defaults.
 def pg_cnx(
     POSTGRES_ADDRESS="127.0.0.1",
