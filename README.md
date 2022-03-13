@@ -8,9 +8,9 @@ Proof of concept code to test out on galaxyproject postgresql databases - run lo
 These will run happily in jupyter notebooks!
 
 Note to self: sql is a pain and sometimes long data is easier. Making it wide in postgres is a bit of a fuss - why bother when
-'
+'''
 wjobs = jobs.pivot(index='user_id', columns='tool_id', values='nruns')
-'
+'''
 works fine in Pandas
 
 galumds.py is ready to try - it should produce a pdf of all users in tool space - expect lots of clusters - BoF to be explored.
