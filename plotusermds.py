@@ -1,8 +1,4 @@
 """
-Heavens
-tool_data_table_config_path: /cvmfs/data.galaxyproject.org/byhand/location/tool_data_table_conf.xml,/cvmfs/data.galaxyproject.org/managed/location/tool_data_table_conf.xml
-what a difference.
-
 Some experimental "Bring code to data" to avoid privacy issues
 Includes fake data generation to test the plot code
 ross lazarus March 12 2022
@@ -22,6 +18,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import psycopg2
+from scipy.cluster import hierarchy
+from scipy.spatial.distance import squareform
 from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import manhattan_distances, euclidean_distances
 from sqlalchemy import create_engine
@@ -105,17 +103,40 @@ def stresstest(jobs):
     plt.ylabel('stress')
     plt.show()
 
+def heatdendro(dm, dat):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    dm = (dm + dm.T) / 2
+    np.fill_diagonal(dm, 0)
+    dist_linkage = hierarchy.ward(squareform(dm))
+    dendro = hierarchy.dendrogram(
+    dist_linkage,  ax=ax1, leaf_rotation=90)
+    dendro_idx = np.arange(0, len(dendro["ivl"]))
+    ax2.imshow(dm[dendro["leaves"], :][:, dendro["leaves"]])
+    ax2.set_xticks(dendro_idx)
+    ax2.set_yticks(dendro_idx)
+    ax2.set_xticklabels(dendro["ivl"], rotation="vertical")
+    ax2.set_yticklabels(dendro["ivl"])
+    fig.tight_layout()
+    plt.savefig('heatdendro.pdf')
+
 def plotjobs(j):
     jobs = pd.DataFrame(j)
-    #jobarray = euclidean_distances(jobs) # precompute - returns numpy array
-    jobarray = jobs.to_numpy(na_value=0)
-    mds = MDS(random_state=0)
+    jobarray = euclidean_distances(jobs) # precompute - returns numpy array
+    mds = MDS(random_state=0, dissimilarity="precomputed")
     jobs_transform = mds.fit_transform(jobarray)
     size = [5]
     plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
     plt.title('Users in tool usage space')
     plt.savefig('user_in_toolspace_mds.pdf')
+    # heatmap(mds.dissimilarity_matrix_,j)
+    log.info('stress=%f' % mds.stress_)
+    return mds
 
+
+DODENDRO = True
+# WARNING!! this will take a huge amount of time for a big dataset :-(
+# twice as long as the mds for the faked 1000x100 data
+# it's another way to look at the results...
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 started = time.time()
@@ -127,8 +148,12 @@ mstarted = time.time()
 nr = len(jobs)
 log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started,nr))
 if nr > 2:
-    plotjobs(jobs)
+    mds = plotjobs(jobs)
     log.info('MDS took %f sec' % (time.time() - mstarted))
+    if DODENDRO:
+        hstarted = time.time()
+        heatdendro(mds.dissimilarity_matrix_, jobs)
+        log.info('heat/dendro plot took %f sec' % (time.time() - hstarted))
 else:
     log.warning('1 or less rows in query result - check that the time interval is sane?')
 log.info('plotusermds.py finished %s' % datetime.today())

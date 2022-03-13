@@ -76,16 +76,19 @@ def fakejobs(NTOOL = 100, NUSERID = 1000, NGROUPS = 5):
         job = job.drop(job.columns[[0]], axis=1)
     return job
 
+
 def plotjobs(j):
     jobs = pd.DataFrame(j)
-    #jobarray = euclidean_distances(jobs) # precompute - returns numpy array
-    jobarray = jobs.to_numpy(na_value=0)
-    mds = MDS(random_state=0)
+    jobarray = euclidean_distances(jobs) # precompute - returns numpy array
+    mds = MDS(random_state=0, dissimilarity = "precomputed")
     jobs_transform = mds.fit_transform(jobarray)
     size = [5]
     plt.scatter(jobs_transform[:,0], jobs_transform[:,1], s=size)
     plt.title('Users in tool usage space')
     plt.savefig('user_in_toolspace_mds.pdf')
+    log.info('stress=%f' % mds.stress_)
+    return mds
+
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
@@ -94,11 +97,12 @@ log.info('galumds.py starting %s' % datetime.today())
 # e.g. for a one month test
 # jobs = pgjobs(DSTART = '2022-01-01 00:00:01', DFINISH = '2022-01-31 23:59:59')
 jobs = pgjobs()
+#jobs = fakejobs()
 mstarted = time.time()
 nr = len(jobs)
 log.info('Retrieving jobs took %f sec and returned %d rows' % (mstarted - started,nr))
 if nr > 2:
-    plotjobs(jobs)
+    mds = plotjobs(jobs)
     log.info('MDS took %f sec' % (time.time() - mstarted))
 else:
     log.warning('1 or less rows in query result - check that the time interval is sane?')

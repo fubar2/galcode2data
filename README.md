@@ -1,6 +1,8 @@
 # galcode2data
 
-# Bring the code to the data for Galaxy experiments
+## Bring the code to the data for Galaxy experiments
+
+### 1. Toward a Galaxy Autoflocker - data driven research BoF flocking
 
 Proof of concept code to test out on galaxyproject postgresql databases - run locally and check outputs to avoid privacy concerns
 
