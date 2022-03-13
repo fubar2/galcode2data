@@ -21,8 +21,3 @@ plotusermds.py was the development code
 DEDENDRO should be false for anything big - even the fake data is a bit over the top.
 
 Please let me see any outputs :)
-
-
-
-
-
