@@ -1,9 +1,8 @@
 """
 Some experimental "Bring code to data" to avoid privacy issues
 
-Couple of generic functions with a specific mds function
+Couple of generic functions with a specific mds autoflocker class
 
-Includes fake data generation to test the plot code
 ross lazarus March 12 2022
 pip3 install pandas matplotlib sklearn sqlalchemy
 need python3-tk if you want to use remote xwindows for images
@@ -103,6 +102,5 @@ class autoflocker():
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 log.info("galumds.py starting %s" % datetime.today())
-autoflocker(DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
-# forever - might be too big to cope with on main!
+_ = autoflocker(DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
 log.info("galumds.py finished %s" % datetime.today())

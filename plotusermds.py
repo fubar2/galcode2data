@@ -173,6 +173,5 @@ class autoflocker():
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 log.info("plotusermds.py starting %s" % datetime.today())
-autoflocker(DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
-# forever - might be too big to cope with on main!
+_ = autoflocker(DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
 log.info("plotusermds.py finished %s" % datetime.today())
