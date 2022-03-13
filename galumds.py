@@ -65,12 +65,13 @@ def pg_query(cnx, sql=None, CHUNKSIZE=1000):
 
 class autoflocker():
 
-    def __init__(self, cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
+    def __init__(self, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
         # forever may be too long on main!!
+        self.cnx = pg_cnx()
         squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
         sql = squery.format(DSTART, DFINISH)
         started = time.time()
-        jobs = pg_query(cnx, sql=sql)
+        jobs = pg_query(self.cnx, sql=sql)
         log.info("Query took %f seconds" % (time.time() - started))
         wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
         # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
@@ -104,7 +105,6 @@ class autoflocker():
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 log.info("galumds.py starting %s" % datetime.today())
-cnx = pg_cnx()
-autoflocker(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
+autoflocker(DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
 # forever - might be too big to cope with on main!
 log.info("galumds.py finished %s" % datetime.today())
