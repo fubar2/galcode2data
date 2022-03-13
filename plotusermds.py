@@ -35,6 +35,7 @@ NCPU = 2  # allowable mds parallel processes, -1 = all !
 plt.switch_backend("TkAgg")  # for x over ssh
 
 # override with local values - these are Bjoern's docker defaults.
+
 def pg_cnx(
     POSTGRES_ADDRESS="127.0.0.1",
     POSTGRES_PORT="5432",
@@ -70,14 +71,43 @@ def pg_query(cnx, sql=None, CHUNKSIZE=1000):
     return res
 
 
-def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
-    # forever may be too long on main!!
-    DODENDRO = True
-    # WARNING!! this will take a huge amount of time for a big dataset :-(
-    # twice as long as the mds for the faked 1000x100 data
-    # it's another way to look at the results...
+class autoflocker():
 
-    def fakejobs(NTOOL=100, NUSERID=1000, NGROUPS=5):
+    def __init__(self, cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
+        # forever may be too long on main!!
+        DODENDRO = True
+        # WARNING!! this will take a huge amount of time for a big dataset :-(
+        # twice as long as the mds for the faked 1000x100 data
+        # it's another way to look at the results...
+        squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
+        sql = squery.format(DSTART, DFINISH)
+        started = time.time()
+        jobs = pg_query(cnx, sql=sql)
+        log.info("Query took %f seconds" % (time.time() - started))
+        wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
+        # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
+        wjobs = wjobs.fillna(0)
+        rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
+        # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
+        mstarted = time.time()
+        nr = len(rjobs)
+        log.info(
+            "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
+        )
+        if nr > 2:
+            mds = self.plotjobs(rjobs)
+            log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
+            if DODENDRO:
+                hstarted = time.time()
+                self.heatdendro(mds.dissimilarity_matrix_, rjobs)
+                log.info("heat/dendro plot took %f sec" % (time.time() - hstarted))
+        else:
+            log.warning(
+                "1 or less rows in query result - check that the time interval is sane?"
+            )
+
+
+    def fakejobs(self, NTOOL=100, NUSERID=1000, NGROUPS=5):
         # synthesise NGROUPS obviously different users
         # to test mds plot code without real data
         sjob = []
@@ -97,7 +127,7 @@ def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
             job = job.drop(job.columns[[0]], axis=1)
         return job
 
-    def stresstest(jobs):
+    def stresstest(self, jobs):
         dist_euclid = euclidean_distances(jobs)
         stress = []
         # Max value for n_components
@@ -113,7 +143,7 @@ def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
         plt.ylabel("stress")
         plt.show()
 
-    def heatdendro(dm, dat):
+    def heatdendro(self, dm, dat):
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
         dm = (dm + dm.T) / 2
         np.fill_diagonal(dm, 0)
@@ -128,7 +158,7 @@ def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
         fig.tight_layout()
         plt.savefig("heatdendro.pdf")
 
-    def plotjobs(j):
+    def plotjobs(self, j):
         jobs = pd.DataFrame(j)
         mds = MDS(random_state=0, n_jobs=NCPU)
         jobs_transform = mds.fit_transform(jobs)
@@ -140,38 +170,11 @@ def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
         log.info("stress=%f" % mds.stress_)
         return mds
 
-    squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
-    sql = squery.format(DSTART, DFINISH)
-    started = time.time()
-    jobs = pg_query(cnx, sql=sql)
-    log.info("Query took %f seconds" % (time.time() - started))
-    wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
-    # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
-    wjobs = wjobs.fillna(0)
-    rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
-    # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
-    mstarted = time.time()
-    nr = len(rjobs)
-    log.info(
-        "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
-    )
-    if nr > 2:
-        mds = plotjobs(rjobs)
-        log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
-        if DODENDRO:
-            hstarted = time.time()
-            heatdendro(mds.dissimilarity_matrix_, rjobs)
-            log.info("heat/dendro plot took %f sec" % (time.time() - hstarted))
-    else:
-        log.warning(
-            "1 or less rows in query result - check that the time interval is sane?"
-        )
-
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 log.info("plotusermds.py starting %s" % datetime.today())
 cnx = pg_cnx()
-mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
+autoflocker(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
 # forever - might be too big to cope with on main!
 log.info("plotusermds.py finished %s" % datetime.today())

@@ -5,7 +5,7 @@ Couple of generic functions with a specific mds function
 
 Includes fake data generation to test the plot code
 ross lazarus March 12 2022
-pip3 install pandas matplotlib sklearn sqlalchemy
+pip3 install pandas matplotlib numpy sklearn sqlalchemy
 need python3-tk if you want to use remote xwindows for images
 so that wants tk
 ah. postgres listens on localhost which is docker
@@ -21,12 +21,13 @@ import pandas as pd
 from sklearn.manifold import MDS
 from sqlalchemy import create_engine
 
+
 NCPU = 2  # allowable mds parallel processes, -1 = all !
+
 
 plt.switch_backend("TkAgg")  # for x over ssh
 
 # override with local values - these are Bjoern's docker defaults.
-
 def pg_cnx(
     POSTGRES_ADDRESS="127.0.0.1",
     POSTGRES_PORT="5432",
@@ -62,13 +63,34 @@ def pg_query(cnx, sql=None, CHUNKSIZE=1000):
     return res
 
 
-def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
-    # forever may be too long on main!!
-    """
-    specific for the autoflocker
-    """
+class autoflocker():
 
-    def plotmds(j):
+    def __init__(self, cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
+        # forever may be too long on main!!
+        squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
+        sql = squery.format(DSTART, DFINISH)
+        started = time.time()
+        jobs = pg_query(cnx, sql=sql)
+        log.info("Query took %f seconds" % (time.time() - started))
+        wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
+        # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
+        wjobs = wjobs.fillna(0)
+        rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
+        # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
+        mstarted = time.time()
+        nr = len(rjobs)
+        log.info(
+            "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
+        )
+        if nr > 2:
+            self.plotjobs(rjobs)
+            log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
+        else:
+            log.warning(
+                "1 or less rows in query result - check that the time interval is sane?"
+            )
+
+    def plotjobs(self, j):
         jobs = pd.DataFrame(j)
         mds = MDS(random_state=0, n_jobs=NCPU)
         jobs_transform = mds.fit_transform(jobs)
@@ -76,38 +98,13 @@ def mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01"):
         plt.scatter(jobs_transform[:, 0], jobs_transform[:, 1], s=size)
         plt.title("Users in tool usage space")
         plt.savefig("user_in_toolspace_mds.pdf")
-        # heatmap(mds.dissimilarity_matrix_,j)
         log.info("stress=%f" % mds.stress_)
-        return mds
-
-    squery = """SELECT user_id, tool_id, COUNT(*) as nruns from job WHERE create_time >= '{}'::timestamp AND create_time < '{}'::timestamp GROUP BY user_id, tool_id  ;"""
-    sql = squery.format(DSTART, DFINISH)
-    started = time.time()
-    jobs = pg_query(cnx, sql=sql)
-    log.info("Query took %f seconds" % (time.time() - started))
-    wjobs = jobs.pivot(index="user_id", columns="tool_id", values="nruns")
-    # too hairy to do in SQL !!! Postgres crosstab is horrid - trivial in pandas.
-    wjobs = wjobs.fillna(0)
-    rjobs = wjobs.div(wjobs.sum(axis=1), axis=0)
-    # scale user tool nruns into a fraction of their total work - remove uninteresting total work volume
-    mstarted = time.time()
-    nr = len(rjobs)
-    log.info(
-        "Retrieving jobs took %f sec and returned %d rows" % (mstarted - started, nr)
-    )
-    if nr > 2:
-        mds = plotmds(rjobs)
-        log.info("MDS with %d CPU took %f sec" % (NCPU, time.time() - mstarted))
-    else:
-        log.warning(
-            "1 or less rows in query result - check that the time interval is sane?"
-        )
 
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 log = logging.getLogger()
 log.info("galumds.py starting %s" % datetime.today())
 cnx = pg_cnx()
-mds_query(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
+autoflocker(cnx, DSTART="2000-01-01 00:00:01", DFINISH="2022-06-01 00:00:01")
 # forever - might be too big to cope with on main!
 log.info("galumds.py finished %s" % datetime.today())
