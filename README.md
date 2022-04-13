@@ -23,10 +23,10 @@ are harmless and return them to the requester. All the identifiable data remains
 Proof of concept is **galumds.py** - ready to try - it has been tested only on a very small table, but it *should* produce a pdf of all users in tool space - expect lots of clusters - BoF to be explored.
 Script needs to be adjusted to replace the postgresql credentials - currently set for Bjoern's docker images.
 Start and end dates should be constrained on large sites - no idea how long it will run - MDS calculation time really bogs down for very large problems.
-NCPU defaults to 2 for the mds calculation - more cpus will improve run times but
+NCPU defaults to 2 for the mds calculation - more cpus will improve run times but not likely to be linear.
 
-plotusermds.py was the development code so has a test data generator.
-DODENDRO **must** be false for any data with thousands of users - even with the fake data, the output is silly and not very informative...
+plotusermds.py was the development code and has a test data generator.
+DODENDRO should be false for any data with more than 50-100 users - even with the fake data, the output is not very informative.
 
 Please let me see any outputs :)
 
