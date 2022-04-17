@@ -13,12 +13,12 @@ science.
 This repository is the starting point for an experimental BoF auto-flocker.
 
 First step is to see if there is any useful structure in the data. That can be done by "seeing" to what extent users form distinct clusters in a multidimensional mathematical "space"
-derived from their individual tool frequency patterns. A method like Multi-Dimensional Scaling (MDS) is a good start. It needs more or less
-"idenfiable" individual user tool usage data, so sending the code to each individual site is the only way we are ever likely to be able to run it.
+derived from their individual tool frequency patterns. A method like Multi-Dimensional Scaling (MDS) is a good start. It needs individual level user tool use frequencies,
+so sending the code to each individual site is the only way we are ever likely to be able to run it without GDPR or other privacy issues.
 
 The idea is that a server admin might agree to run some code after taking a close look to make sure it is not malicious.
-That code is produces pdf plots only - images - so no way to identify any of the individual dots. The admin would run the code, check that the images
-are harmless and return them to the requester. All the identifiable data remains secured.
+That code produces pdf plots only - images - so no way to identify any of the individual dots. The admin would run the code, check that the images
+are harmless and return them to the requester. All the identifiable data remains secured but this will need expensive people to run so funding is required if it is to be sustainable.
 
 Proof of concept is **galumds.py** - ready to try - it has been tested only on a very small table, but it *should* produce a pdf of all users in tool space - expect lots of clusters - BoF to be explored.
 Script needs to be adjusted to replace the postgresql credentials - currently set for Bjoern's docker images.
